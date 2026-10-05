@@ -1,0 +1,691 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OB Performance Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F4F8;color:#1a1a2e;font-size:13px}
+:root{--navy:#1C3557;--pos:#15803d;--neg:#DC2626;--muted:#6b7280;--border:#e5e7eb;--surface:#fff}
+header{background:var(--navy);color:#fff;padding:12px 20px;display:flex;align-items:center;justify-content:space-between}
+header h1{font-size:16px;font-weight:600}
+header span{font-size:12px;opacity:.7}
+.tabs{background:var(--navy);display:flex;padding:0 20px;border-bottom:1px solid rgba(255,255,255,.15)}
+.tab{padding:10px 18px;color:rgba(255,255,255,.65);cursor:pointer;font-size:12px;font-weight:500;border-bottom:2px solid transparent}
+.tab.active{color:#fff;border-bottom-color:#fff}
+.tab:hover:not(.active){color:rgba(255,255,255,.85)}
+.page{display:none;padding:16px 20px}
+.page.active{display:block}
+.controls{display:flex;align-items:center;gap:14px;margin-bottom:12px;flex-wrap:wrap}
+.filter-group{display:flex;gap:4px}
+.filter-btn{padding:4px 12px;border:1px solid var(--border);background:var(--surface);border-radius:4px;cursor:pointer;font-size:12px;color:var(--muted)}
+.filter-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.export-btn{padding:6px 14px;border:1px solid #15803d;background:#15803d;color:#fff;border-radius:5px;cursor:pointer;font-size:12px;font-weight:600;margin-left:auto}
+.export-btn:hover:not(:disabled){background:#126c34;border-color:#126c34}
+.export-btn:disabled{opacity:.6;cursor:default}
+.export-note{font-size:10px;color:var(--muted);margin-left:8px}
+.week-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.week-btn{padding:5px 12px;border:2px solid var(--border);background:var(--surface);border-radius:5px;cursor:pointer;font-size:11px;color:var(--muted);font-weight:500;transition:all .15s}
+.week-btn:hover:not(.active){border-color:#94a3b8;color:#374151}
+.week-btn.active{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:700;box-shadow:0 1px 4px rgba(28,53,87,.35)}
+.week-dd{padding:5px 10px;border:2px solid var(--border);background:var(--surface);border-radius:5px;cursor:pointer;font-size:11px;color:var(--muted);font-weight:500}
+.week-dd:hover{border-color:#94a3b8;color:#374151}
+.ctrl-label{font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+.tbl-wrap{overflow-x:auto;border-radius:6px;border:1px solid var(--border);background:var(--surface)}
+table{width:100%;border-collapse:collapse;min-width:960px}
+thead th{background:#F8FAFC;padding:8px 10px;text-align:center;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;position:sticky;top:0;z-index:1}
+thead th:hover{background:#eef2f7}
+thead th.sorted{color:var(--navy)}
+thead th .sa{opacity:.35;margin-left:2px;font-size:9px}
+thead th.sorted .sa{opacity:1}
+tbody tr{border-bottom:1px solid #F3F4F6}
+tbody tr:hover{background:#FAFBFC}
+td{padding:7px 10px;vertical-align:middle}
+td.name-cell{font-weight:500;white-space:nowrap;font-size:12px;min-width:160px;text-align:left}
+td.metric-cell{text-align:center;min-width:90px}
+.val{font-size:13px;font-weight:500;display:block}
+.sub{font-size:10px;display:flex;gap:5px;justify-content:center;margin-top:1px;align-items:center}
+.chg{font-weight:600;font-size:10px}
+.chg.pos{color:var(--pos)}.chg.neg{color:var(--neg)}.chg.neu{color:#9ca3af}
+.badge{display:inline-block;padding:2px 7px;border-radius:3px;font-size:10px;font-weight:700}
+.badge.CLW{background:#1a1a1a;color:#fff}.badge.CNX{background:#CE202F;color:#fff}
+.null-val{color:#d1d5db}
+
+/* ── Summary tab ── */
+.org-banner{background:var(--navy);border-radius:8px;padding:24px 28px;margin-bottom:20px;color:#fff}
+.org-banner-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;opacity:.65;margin-bottom:16px}
+.org-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+.org-stat{padding:0 28px 0 0;border-right:1px solid rgba(255,255,255,.15)}
+.org-stat:first-child{padding-left:0}
+.org-stat:last-child{border-right:none}
+.org-stat-label{font-size:14px;opacity:.8;margin-bottom:6px;font-weight:600;letter-spacing:.2px}
+.org-stat-val{font-size:38px;font-weight:700;line-height:1;letter-spacing:-1px}
+.org-stat-sub{font-size:12px;opacity:.55;margin-top:4px}
+.group-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.group-card{background:var(--surface);border-radius:6px;border:1px solid var(--border)}
+.group-card-hdr{padding:12px 14px;font-size:15px;font-weight:700;color:#fff;display:flex;justify-content:space-between;align-items:center;border-radius:6px 6px 0 0;letter-spacing:.3px}
+.group-card-hdr.CLW{background:#1a1a1a}.group-card-hdr.CNX{background:#CE202F}
+.group-card-hdr span{font-size:11px;font-weight:400;opacity:.75}
+.gtbl-wrap{overflow-x:auto}
+.group-tbl{width:100%;border-collapse:collapse;min-width:320px}
+.group-tbl td,.group-tbl th{padding:6px 12px;font-size:12px}
+.group-tbl th{background:#F8FAFC;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.4px;font-weight:600;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
+.group-tbl th:first-child{text-align:left}
+.group-tbl td{border-bottom:1px solid #F3F4F6;text-align:right}
+.group-tbl td:first-child{text-align:left;font-weight:500;color:#374151}
+.group-tbl tr:last-child td{border:none}
+.scatter-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.chart-card{background:var(--surface);border-radius:6px;border:1px solid var(--border);padding:14px}
+.chart-title{font-size:12px;font-weight:600;color:#374151;margin-bottom:6px}
+.chart-legend{display:flex;gap:14px;margin-bottom:8px;font-size:11px;color:var(--muted)}
+.ldot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+.divider{height:1px;background:var(--border);margin:16px 0}
+canvas{display:block;width:100%;cursor:crosshair}
+.ytd-btn{border-style:dashed;border-color:#15803d;color:#15803d}
+.ytd-btn:hover:not(.active){border-color:#15803d;color:#15803d}
+.ytd-btn.active{background:#15803d;color:#fff;border-color:#15803d;border-style:solid;font-weight:700;box-shadow:0 1px 4px rgba(21,128,61,.4)}
+.tooltip{position:fixed;background:#1C3557;color:#fff;padding:5px 10px;border-radius:4px;font-size:11px;pointer-events:none;display:none;z-index:999}
+</style>
+</head>
+<body>
+<div class="tooltip" id="tip"></div>
+<header>
+  <h1>OB Performance Dashboard</h1>
+  <span id="hdr-week"></span>
+</header>
+<div class="tabs">
+  <div class="tab active" data-tab="summary">Summary</div>
+  <div class="tab" data-tab="agents">By Agent</div>
+</div>
+
+<!-- SUMMARY -->
+<div id="summary-page" class="page active">
+  <div class="controls">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="ctrl-label">Week</span>
+      <div id="sum-week-selector" class="week-tabs"></div>
+    </div>
+  </div>
+  <div class="org-banner" id="org-banner"></div>
+  <div class="group-grid" id="group-cards"></div>
+  <div class="divider"></div>
+  <div class="scatter-row">
+    <div class="chart-card">
+      <div class="chart-title" id="scat-pri-title"></div>
+      <div class="chart-legend">
+        <span><span class="ldot" style="background:#1a1a1a"></span>CLW</span>
+        <span><span class="ldot" style="background:#CE202F"></span>CNX</span>
+        <span style="font-size:10px;color:#9ca3af;margin-left:4px">X=Conv%  Y=Calls/Opp</span>
+      </div>
+      <canvas id="scat-pri" height="300"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title" id="scat-cur-title"></div>
+      <div class="chart-legend">
+        <span><span class="ldot" style="background:#1a1a1a"></span>CLW</span>
+        <span><span class="ldot" style="background:#CE202F"></span>CNX</span>
+        <span style="font-size:10px;color:#9ca3af;margin-left:4px">X=Conv%  Y=Calls/Opp</span>
+      </div>
+      <canvas id="scat-cur" height="300"></canvas>
+    </div>
+  </div>
+  <div class="divider"></div>
+  <div class="chart-card" id="containers-trend-card">
+    <div style="margin-bottom:10px">
+      <div class="chart-title">Containers Sold by Week</div>
+    </div>
+    <div id="containers-chart"></div>
+  </div>
+</div>
+
+<!-- BY AGENT -->
+<div id="agents-page" class="page">
+  <div class="controls">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="ctrl-label">Group</span>
+      <div class="filter-group">
+        <button class="filter-btn active" data-grp="ALL">All</button>
+        <button class="filter-btn" data-grp="CLW">CLW</button>
+        <button class="filter-btn" data-grp="CNX">CNX</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <span class="ctrl-label">Week</span>
+      <div id="week-selector" class="week-tabs"></div>
+    </div>
+    <button class="export-btn" id="export-btn">Export to Excel (All Weeks)</button>
+    <span class="export-note" id="export-note"></span>
+  </div>
+  <div class="tbl-wrap">
+    <table><thead id="agent-thead"></thead><tbody id="agent-tbody"></tbody></table>
+  </div>
+</div>
+
+<script src="ob_data.js"></script>
+<script src="aop_data.js"></script>
+<script>
+const ALL_WKS = Object.keys(D).sort((a,b)=>D[a].num-D[b].num);
+// Buttons show the latest 8 weeks; older weeks (up to 52) are reachable via the dropdown
+const AGENT_WKS = ALL_WKS.slice(-8);
+const RECENT_WKS = AGENT_WKS;
+const DROPDOWN_WKS = ALL_WKS.slice(-52);
+const METRICS=[
+  {key:'opps',label:'Opps',fmt:'int',ct:'pct'},
+  {key:'ob_calls',label:'OB Calls',fmt:'int',ct:'pct'},
+  {key:'ib_calls',label:'IB Calls',fmt:'int',ct:'pct'},
+  {key:'containers',label:'Cont.',fmt:'int',ct:'pct'},
+  {key:'calls_per_opp',label:'Calls/Opp',fmt:'d2',ct:'pp'},
+  {key:'conversion',label:'Conv %',fmt:'p1',ct:'pp'},
+  {key:'close_rate',label:'Close %',fmt:'p1',ct:'pp'},
+  {key:'cancel_7d',label:'7D Cancel',fmt:'p1',ct:'pp'},
+];
+let AW=ALL_WKS[ALL_WKS.length-1],GF='ALL',SK='name',SD='asc',YTD=false;
+function getYTDWeeks(){const idx=ALL_WKS.indexOf(AW);return ALL_WKS.slice(0,idx+1);}
+function ytdAgentData(){
+  const wks=getYTDWeeks(),map={};
+  wks.forEach(w=>{D[w].agents.forEach(a=>{
+    if(!map[a.name])map[a.name]={name:a.name,group:a.group,opps:0,ob_calls:0,ib_calls:0,containers:0,orders:0,cW:0,cC:0};
+    const m=map[a.name];
+    m.opps+=(a.opps||0);m.ob_calls+=(a.ob_calls||0);m.ib_calls+=(a.ib_calls||0);m.containers+=(a.containers||0);m.orders+=(a.orders||0);
+    if(a.cancel_7d!=null&&(a.containers||0)>0){m.cW+=a.cancel_7d*(a.containers||0);m.cC+=(a.containers||0);}
+  });});
+  return Object.values(map).map(a=>({name:a.name,group:a.group,
+    opps:a.opps||null,ob_calls:a.ob_calls||null,ib_calls:a.ib_calls||null,containers:a.containers||null,orders:a.orders||null,
+    calls_per_opp:a.opps?+((a.ob_calls+a.ib_calls)/a.opps).toFixed(2):null,
+    conversion:a.opps?+(100*a.containers/a.opps).toFixed(1):null,
+    close_rate:a.opps?+(100*a.orders/a.opps).toFixed(1):null,
+    cancel_7d:a.cC>0?+(a.cW/a.cC).toFixed(1):null}));
+}
+const fn=s=>{if(!s)return'';return s===s.toUpperCase()?s.split(' ').map(w=>w[0]+w.slice(1).toLowerCase()).join(' '):s};
+const fv=(v,f)=>{if(v==null)return'<span class="null-val">—</span>';if(f==='int')return Math.round(v).toLocaleString();if(f==='d2')return(+v).toFixed(2);if(f==='p1')return(+v).toFixed(1)+'%';return v;};
+const fr=(v,f)=>{if(v==null)return'';if(f==='int')return Math.round(v).toLocaleString();if(f==='d2')return(+v).toFixed(2);if(f==='p1')return(+v).toFixed(1)+'%';return v;};
+const ga=(n,w)=>D[w]?.agents.find(a=>a.name===n)||null;
+const l4w=(n,k)=>{const vs=ALL_WKS.map(w=>ga(n,w)?.[k]).filter(v=>v!=null);return vs.length?vs.reduce((s,v)=>s+v,0)/vs.length:null;};
+const wow=(n,k,ct,cw)=>{const i=ALL_WKS.indexOf(cw);if(i<1)return null;const pw=ALL_WKS[i-1];const c=ga(n,cw)?.[k],p=ga(n,pw)?.[k];if(c==null||p==null)return null;return ct==='pp'?c-p:p?((c-p)/p*100):null;};
+const fc=(v,ct)=>{if(v==null)return{t:'',c:'neu'};const s=v>=0?'+':'';return{t:ct==='pp'?s+v.toFixed(1)+'pp':s+v.toFixed(1)+'%',c:v>0.05?'pos':v<-0.05?'neg':'neu'};};
+
+function rwb(){
+  document.querySelectorAll('.week-btn:not(.ytd-btn)').forEach(b=>{
+    b.className='week-btn'+(b.dataset.wk===AW&&!YTD?' active':'');
+  });
+  document.querySelectorAll('.ytd-btn').forEach(b=>{
+    b.className='week-btn ytd-btn'+(YTD?' active':'');
+  });
+  document.querySelectorAll('.week-dd').forEach(sel=>{
+    sel.value=RECENT_WKS.includes(AW)?'':AW;
+  });
+  document.getElementById('hdr-week').textContent=YTD?'YTD · W54–W'+D[AW].num:'W'+D[AW].num+' · '+D[AW].date;
+}
+
+function wbs(id, wkList, cb){
+  const el=document.getElementById(id);if(!el)return;el.innerHTML='';
+  wkList.forEach(w=>{
+    const b=document.createElement('button');
+    b.className='week-btn'+(w===AW&&!YTD?' active':'');
+    b.dataset.wk=w;
+    b.textContent='W'+D[w].num+' ('+D[w].date+')';
+    b.onclick=()=>{AW=w;YTD=false;rwb();cb();};
+    el.appendChild(b);
+  });
+  const sel=document.createElement('select');
+  sel.className='week-dd';
+  const opt0=document.createElement('option');opt0.value='';opt0.textContent='Older weeks…';sel.appendChild(opt0);
+  DROPDOWN_WKS.slice().reverse().forEach(w=>{
+    const o=document.createElement('option');o.value=w;o.textContent='W'+D[w].num+' ('+D[w].date+')';sel.appendChild(o);
+  });
+  sel.value=RECENT_WKS.includes(AW)?'':AW;
+  sel.onchange=()=>{if(sel.value){AW=sel.value;YTD=false;rwb();cb();}};
+  el.appendChild(sel);
+  if(id==='sum-week-selector'){
+    const sep=document.createElement('span');sep.style.cssText='display:inline-block;width:1px;background:#e5e7eb;margin:0 6px;align-self:stretch;';el.appendChild(sep);
+    const b=document.createElement('button');
+    b.className='week-btn ytd-btn'+(YTD?' active':'');
+    b.textContent='YTD';
+    b.onclick=()=>{YTD=!YTD;rwb();cb();};
+    el.appendChild(b);
+  }
+}
+
+function bat(){
+  let ag;
+  const cols=[{key:'name',label:'Agent'},{key:'group',label:'Grp'},...METRICS];
+  if(YTD){
+    ag=ytdAgentData();
+    if(GF!=='ALL')ag=ag.filter(a=>a.group===GF);
+    ag.sort((a,b)=>{let va,vb;if(SK==='name'){va=a.name;vb=b.name;}else if(SK==='group'){va=a.group;vb=b.group;}else{va=a[SK]??-Infinity;vb=b[SK]??-Infinity;}if(va<vb)return SD==='asc'?-1:1;if(va>vb)return SD==='asc'?1:-1;return 0;});
+    document.getElementById('agent-thead').innerHTML='<tr>'+cols.map(c=>{const arr=c.key===SK?(SD==='asc'?'▲':'▼'):'⇅';return`<th class="${c.key===SK?'sorted':''}" data-sort="${c.key}">${c.label} <span class="sa">${arr}</span></th>`;}).join('')+'</tr>';
+    document.getElementById('agent-tbody').innerHTML=ag.map(a=>{
+      const mts=METRICS.map(m=>`<td class="metric-cell"><span class="val">${fv(a[m.key],m.fmt)}</span><div class="sub"><span style="color:#9ca3af">YTD</span><span class="chg neu">—</span></div></td>`).join('');
+      return`<tr><td class="name-cell">${fn(a.name)}</td><td><span class="badge ${a.group}">${a.group}</span></td>${mts}</tr>`;
+    }).join('');
+  }else{
+    const dispWk=AGENT_WKS.includes(AW)?AW:AGENT_WKS[AGENT_WKS.length-1];
+    ag=[...D[dispWk].agents];
+    if(GF!=='ALL')ag=ag.filter(a=>a.group===GF);
+    ag.sort((a,b)=>{let va,vb;if(SK==='name'){va=a.name;vb=b.name;}else if(SK==='group'){va=a.group;vb=b.group;}else{va=a[SK]??-Infinity;vb=b[SK]??-Infinity;}if(va<vb)return SD==='asc'?-1:1;if(va>vb)return SD==='asc'?1:-1;return 0;});
+    document.getElementById('agent-thead').innerHTML='<tr>'+cols.map(c=>{const arr=c.key===SK?(SD==='asc'?'▲':'▼'):'⇅';return`<th class="${c.key===SK?'sorted':''}" data-sort="${c.key}">${c.label} <span class="sa">${arr}</span></th>`;}).join('')+'</tr>';
+    document.getElementById('agent-tbody').innerHTML=ag.map(a=>{
+      const mts=METRICS.map(m=>{const lv=l4w(a.name,m.key),wv=wow(a.name,m.key,m.ct,dispWk),ch=fc(wv,m.ct);return`<td class="metric-cell"><span class="val">${fv(a[m.key],m.fmt)}</span><div class="sub"><span style="color:#9ca3af">${lv!=null?'L4: '+fr(lv,m.fmt):''}</span><span class="chg ${ch.c}">${ch.t}</span></div></td>`;}).join('');
+      return`<tr><td class="name-cell">${fn(a.name)}</td><td><span class="badge ${a.group}">${a.group}</span></td>${mts}</tr>`;
+    }).join('');
+  }
+  document.getElementById('agent-thead').querySelectorAll('th').forEach(th=>{th.onclick=()=>{const k=th.dataset.sort;if(SK===k)SD=SD==='asc'?'desc':'asc';else{SK=k;SD=k==='name'||k==='group'?'asc':'desc';}bat();};});
+}
+
+function orgTotals(wk){
+  const ag=D[wk].agents.filter(a=>a.opps);
+  const totOpps=ag.reduce((s,a)=>s+(a.opps||0),0);
+  const totCont=ag.reduce((s,a)=>s+(a.containers||0),0);
+  // Weighted conversion: each agent weighted by their container count
+  const convAg=ag.filter(a=>a.conversion!=null&&a.containers!=null&&a.containers>0);
+  const conv=convAg.length?convAg.reduce((s,a)=>s+a.conversion*a.containers,0)/convAg.reduce((s,a)=>s+a.containers,0):0;
+  // Weighted close rate: each agent weighted by their order count
+  const closeAg=ag.filter(a=>a.close_rate!=null&&a.orders!=null&&a.orders>0);
+  const close=closeAg.length?closeAg.reduce((s,a)=>s+a.close_rate*a.orders,0)/closeAg.reduce((s,a)=>s+a.orders,0):0;
+  return{totOpps,totCont,conv,close};
+}
+function buildOrgBanner(){
+  let title,totOpps,totCont,conv,close,subC,subO;
+  if(YTD){
+    const wks=getYTDWeeks(),ag=ytdAgentData().filter(a=>a.opps);
+    totOpps=ag.reduce((s,a)=>s+(a.opps||0),0);
+    totCont=ag.reduce((s,a)=>s+(a.containers||0),0);
+    const cAg=ag.filter(a=>a.conversion!=null&&(a.containers||0)>0);
+    conv=cAg.length?cAg.reduce((s,a)=>s+a.conversion*(a.containers||0),0)/cAg.reduce((s,a)=>s+(a.containers||0),0):0;
+    const clAg=ag.filter(a=>a.close_rate!=null&&(a.orders||0)>0);
+    close=clAg.length?clAg.reduce((s,a)=>s+a.close_rate*(a.orders||0),0)/clAg.reduce((s,a)=>s+(a.orders||0),0):0;
+    const aopC=wks.reduce((s,w)=>s+((AOP[w]||{}).c||0),0);
+    const aopO=wks.reduce((s,w)=>s+((AOP[w]||{}).o||0),0);
+    subC=aopC?Math.round(totCont/aopC*100)+'% to AOP · AOP: '+aopC.toLocaleString():'across all agents';
+    subO=aopO?Math.round(totOpps/aopO*100)+'% to AOP · AOP: '+aopO.toLocaleString():'across all agents';
+    title='YTD · W54–W'+D[AW].num+' · Org Total';
+  }else{
+    const t=orgTotals(AW);totOpps=t.totOpps;totCont=t.totCont;conv=t.conv;close=t.close;
+    const aw=AOP[AW]||{};
+    subC=aw.c?Math.round(totCont/aw.c*100)+'% to AOP · AOP: '+aw.c.toLocaleString():'across all agents';
+    subO=aw.o?Math.round(totOpps/aw.o*100)+'% to AOP · AOP: '+aw.o.toLocaleString():'across all agents';
+    title='W'+D[AW].num+' \xb7 '+D[AW].date+' \xb7 Org Total';
+  }
+  document.getElementById('org-banner').innerHTML=`
+    <div class="org-banner-title">${title}</div>
+    <div class="org-stats">
+      <div class="org-stat"><div class="org-stat-label">Total Opportunities</div><div class="org-stat-val">${totOpps.toLocaleString()}</div><div class="org-stat-sub">${subO}</div></div>
+      <div class="org-stat" style="padding-left:28px"><div class="org-stat-label">Total Containers</div><div class="org-stat-val">${totCont.toLocaleString()}</div><div class="org-stat-sub">${subC}</div></div>
+      <div class="org-stat" style="padding-left:28px"><div class="org-stat-label">Overall Conversion</div><div class="org-stat-val">${conv.toFixed(1)}%</div><div class="org-stat-sub">containers \xf7 opportunities</div></div>
+      <div class="org-stat" style="padding-left:28px"><div class="org-stat-label">Overall Close Rate</div><div class="org-stat-val">${close.toFixed(1)}%</div><div class="org-stat-sub">orders \xf7 opportunities</div></div>
+    </div>`;
+}
+function cg(g,w){
+  const ag=D[w].agents.filter(a=>a.group===g&&a.opps);if(!ag.length)return null;
+  const n=ag.length,sm=k=>ag.reduce((s,a)=>s+(a[k]||0),0);
+  const nb=k=>ag.filter(a=>a[k]!=null);
+  const tO=sm('opps'),tOb=sm('ob_calls'),tIb=sm('ib_calls'),tC=sm('containers');
+  // Weighted 7D cancel: each agent weighted by their container count
+  const c7ag=ag.filter(a=>a.cancel_7d!=null&&a.containers!=null&&a.containers>0);
+  const c7=c7ag.length?c7ag.reduce((s,a)=>s+a.cancel_7d*a.containers,0)/c7ag.reduce((s,a)=>s+a.containers,0):null;
+  // Weighted conversion: each agent weighted by their container count
+  const convAg=ag.filter(a=>a.conversion!=null&&a.containers!=null&&a.containers>0);
+  const wtConv=convAg.length?convAg.reduce((s,a)=>s+a.conversion*a.containers,0)/convAg.reduce((s,a)=>s+a.containers,0):null;
+  // Weighted close rate: each agent weighted by their order count
+  const closeAg=ag.filter(a=>a.close_rate!=null&&a.orders!=null&&a.orders>0);
+  const wtClose=closeAg.length?closeAg.reduce((s,a)=>s+a.close_rate*a.orders,0)/closeAg.reduce((s,a)=>s+a.orders,0):null;
+  return{opps:Math.round(tO/n),ob_calls:Math.round(tOb/n),ib_calls:Math.round(tIb/n),containers:Math.round(tC/n),calls_per_opp:tO>0?+((tOb+tIb)/tO).toFixed(2):null,conversion:wtConv!=null?+wtConv.toFixed(1):null,close_rate:wtClose!=null?+wtClose.toFixed(1):null,cancel_7d:c7!=null?+c7.toFixed(1):null,n};
+}
+function cgl4(g,k){const vs=ALL_WKS.map(w=>cg(g,w)?.[k]).filter(v=>v!=null);return vs.length?vs.reduce((s,v)=>s+v,0)/vs.length:null;}
+function bgc(){
+  if(YTD){
+    const allAg=ytdAgentData();
+    document.getElementById('group-cards').innerHTML=['CLW','CNX'].map(g=>{
+      const ag=allAg.filter(a=>a.group===g&&a.opps);
+      if(!ag.length)return`<div class="group-card"><div class="group-card-hdr ${g}">${g}<span>0 agents</span></div></div>`;
+      const n=ag.length,sm=k=>ag.reduce((s,a)=>s+(a[k]||0),0);
+      const tO=sm('opps'),tOb=sm('ob_calls'),tIb=sm('ib_calls'),tC=sm('containers');
+      const c7ag=ag.filter(a=>a.cancel_7d!=null&&(a.containers||0)>0);
+      const c7=c7ag.length?c7ag.reduce((s,a)=>s+a.cancel_7d*(a.containers||0),0)/c7ag.reduce((s,a)=>s+(a.containers||0),0):null;
+      const cAg=ag.filter(a=>a.conversion!=null&&(a.containers||0)>0);
+      const wtConv=cAg.length?cAg.reduce((s,a)=>s+a.conversion*(a.containers||0),0)/cAg.reduce((s,a)=>s+(a.containers||0),0):null;
+      const clAg=ag.filter(a=>a.close_rate!=null&&(a.orders||0)>0);
+      const wtClose=clAg.length?clAg.reduce((s,a)=>s+a.close_rate*(a.orders||0),0)/clAg.reduce((s,a)=>s+(a.orders||0),0):null;
+      const cur={opps:Math.round(tO/n),ob_calls:Math.round(tOb/n),ib_calls:Math.round(tIb/n),containers:Math.round(tC/n),calls_per_opp:tO>0?+((tOb+tIb)/tO).toFixed(2):null,conversion:wtConv!=null?+wtConv.toFixed(1):null,close_rate:wtClose!=null?+wtClose.toFixed(1):null,cancel_7d:c7!=null?+c7.toFixed(1):null};
+      const rows=METRICS.map(m=>`<tr><td>${m.label}</td><td>${fv(cur[m.key],m.fmt)}</td><td style="color:#9ca3af">—</td><td><span class="chg neu">—</span></td></tr>`).join('');
+      return`<div class="group-card"><div class="group-card-hdr ${g}">${g}<span>${n} agents</span></div><div class="gtbl-wrap"><table class="group-tbl"><thead><tr><th>Metric (avg. per agent)</th><th>YTD Avg</th><th>L4W Avg</th><th>WoW</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    }).join('');
+  }else{
+    const i=ALL_WKS.indexOf(AW),pw=i>0?ALL_WKS[i-1]:null;
+    document.getElementById('group-cards').innerHTML=['CLW','CNX'].map(g=>{
+      const cur=cg(g,AW),pri=pw?cg(g,pw):null;
+      const rows=METRICS.map(m=>{
+        const v=cur?cur[m.key]:null,l4=cgl4(g,m.key),pv=pri?pri[m.key]:null;
+        let wv=null;if(v!=null&&pv!=null)wv=m.ct==='pp'?v-pv:pv?((v-pv)/pv*100):null;
+        const ch=fc(wv,m.ct);
+        return`<tr><td>${m.label}</td><td>${fv(v,m.fmt)}</td><td style="color:#9ca3af">${l4!=null?fr(l4,m.fmt):''}</td><td><span class="chg ${ch.c}" style="font-weight:600">${ch.t||'—'}</span></td></tr>`;
+      }).join('');
+      return`<div class="group-card"><div class="group-card-hdr ${g}">${g}<span>${cur?.n||0} agents</span></div><div class="gtbl-wrap"><table class="group-tbl"><thead><tr><th>Metric (avg. per agent)</th><th>Current</th><th>L4W Avg</th><th>WoW</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    }).join('');
+  }
+}
+function bsc(){
+  const i=ALL_WKS.indexOf(AW),pw=i>0?ALL_WKS[i-1]:null;
+  const getPts=(wk,g)=>wk?D[wk].agents.filter(a=>a.group===g&&a.calls_per_opp>=0.08&&a.conversion!=null&&a.calls_per_opp!=null).map(a=>({x:+a.conversion,y:+a.calls_per_opp,g,name:fn(a.name)})):[];
+  const allPts=[...getPts(pw,'CLW'),...getPts(pw,'CNX'),...getPts(AW,'CLW'),...getPts(AW,'CNX')];
+  const sharedXMax=allPts.length?Math.ceil(Math.max(...allPts.map(p=>p.x))*1.2):30;
+  const sharedYMax=allPts.length?Math.ceil(Math.max(...allPts.map(p=>p.y))*1.2*10)/10:4;
+  document.getElementById('scat-pri-title').textContent=pw?'W'+D[pw].num+' · '+D[pw].date:'Prior week unavailable';
+  document.getElementById('scat-cur-title').textContent='W'+D[AW].num+' · '+D[AW].date;
+  drawScatter('scat-pri',pw?[...getPts(pw,'CLW'),...getPts(pw,'CNX')]:[],sharedXMax,sharedYMax);
+  drawScatter('scat-cur',[...getPts(AW,'CLW'),...getPts(AW,'CNX')],sharedXMax,sharedYMax);
+  setupTooltip('scat-pri');setupTooltip('scat-cur');
+}
+function drawScatter(canvasId,pts,xMax,yMax){
+  const canvas=document.getElementById(canvasId);if(!canvas)return;
+  const W=canvas.offsetWidth||canvas.parentElement.offsetWidth||400;
+  canvas.width=W;canvas.height=300;
+  const ctx=canvas.getContext('2d');
+  const pad={top:20,right:20,bottom:50,left:55};
+  const pw=W-pad.left-pad.right,ph=300-pad.top-pad.bottom;
+  const toX=v=>pad.left+(v/xMax)*pw;
+  const toY=v=>pad.top+ph-(v/yMax)*ph;
+  ctx.strokeStyle='#f3f4f6';ctx.lineWidth=1;
+  for(let i=0;i<=5;i++){const y=pad.top+i*(ph/5);ctx.beginPath();ctx.moveTo(pad.left,y);ctx.lineTo(pad.left+pw,y);ctx.stroke();ctx.fillStyle='#9ca3af';ctx.font='10px system-ui';ctx.textAlign='right';ctx.fillText((yMax*(1-i/5)).toFixed(1),pad.left-6,y+3);}
+  for(let i=0;i<=5;i++){const x=pad.left+i*(pw/5);ctx.beginPath();ctx.moveTo(x,pad.top);ctx.lineTo(x,pad.top+ph);ctx.stroke();ctx.fillStyle='#9ca3af';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText((xMax*i/5).toFixed(0)+'%',x,pad.top+ph+16);}
+  ctx.fillStyle='#6b7280';ctx.font='11px system-ui';ctx.textAlign='center';
+  ctx.fillText('Conversion %',pad.left+pw/2,pad.top+ph+38);
+  ctx.save();ctx.translate(14,pad.top+ph/2);ctx.rotate(-Math.PI/2);ctx.fillText('Calls per Opp',0,0);ctx.restore();
+  ctx.strokeStyle='#e5e7eb';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.left,pad.top);ctx.lineTo(pad.left,pad.top+ph);ctx.lineTo(pad.left+pw,pad.top+ph);ctx.stroke();
+  if(!pts.length){ctx.fillStyle='#9ca3af';ctx.font='12px system-ui';ctx.textAlign='center';ctx.fillText('No data',W/2,150);canvas._pts=[];return;}
+  pts.forEach(p=>{ctx.beginPath();ctx.arc(toX(p.x),toY(p.y),5,0,Math.PI*2);ctx.fillStyle=p.g==='CLW'?'rgba(26,26,26,0.85)':'rgba(206,32,47,0.85)';ctx.fill();});
+  canvas._pts=pts.map(p=>({...p,cx:toX(p.x),cy:toY(p.y)}));
+}
+function setupTooltip(canvasId){
+  const canvas=document.getElementById(canvasId);if(!canvas)return;
+  const tip=document.getElementById('tip');
+  canvas.addEventListener('mousemove',e=>{
+    const r=canvas.getBoundingClientRect();
+    const mx=(e.clientX-r.left)*(canvas.width/r.width),my=(e.clientY-r.top)*(canvas.height/r.height);
+    const hit=(canvas._pts||[]).find(p=>Math.hypot(p.cx-mx,p.cy-my)<10);
+    if(hit){tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-8)+'px';tip.textContent=hit.name+': '+hit.x.toFixed(1)+'% conv, '+hit.y.toFixed(2)+' CPO';}
+    else tip.style.display='none';
+  });
+  canvas.addEventListener('mouseleave',()=>{tip.style.display='none';});
+}
+function buildContainersTrend(){
+  const el=document.getElementById('containers-chart');if(!el)return;
+  const bars=ALL_WKS.map(w=>{
+    const total=D[w].agents.reduce((s,a)=>s+(a.containers||0),0);
+    return{label:'W'+D[w].num+'\n'+D[w].date,total,active:w===AW,aop:(AOP[w]||{}).c||0};
+  });
+  const maxVal=Math.max(...bars.map(b=>b.total),...bars.map(b=>b.aop),1);
+  const W=el.offsetWidth||600;
+  const padL=20,padR=20,padT=24,padB=52,H=220;
+  const n=bars.length,barW=Math.floor((W-padL-padR)/n*0.6);
+  const slotW=(W-padL-padR)/n;
+  let svg=`<svg viewBox="0 0 ${W} ${H+padT+padB}" xmlns="http://www.w3.org/2000/svg" style="width:100%;display:block">`;
+  bars.forEach((b,i)=>{
+    const slotX=padL+i*slotW;
+    const bx=slotX+(slotW-barW)/2;
+    const bh=Math.max(2,(b.total/maxVal)*H);
+    const by=padT+H-bh;
+    const fill=b.active?'#1C3557':'#93afc8';
+    svg+=`<rect x="${bx}" y="${by}" width="${barW}" height="${bh}" rx="3" fill="${fill}"/>`;
+    svg+=`<text x="${bx+barW/2}" y="${by-5}" text-anchor="middle" font-size="11" font-weight="600" fill="#1a1a2e">${b.total}</text>`;
+    const labelLines=b.label.split('\n');
+    svg+=`<text x="${bx+barW/2}" y="${padT+H+16}" text-anchor="middle" font-size="11" fill="#6b7280">${labelLines[0]}</text>`;
+    if(labelLines[1])svg+=`<text x="${bx+barW/2}" y="${padT+H+30}" text-anchor="middle" font-size="10" fill="#9ca3af">${labelLines[1]}</text>`;
+  });
+  // AOP target line
+  const aopPts=bars.map((b,i)=>{
+    if(!b.aop)return null;
+    const bx=padL+i*slotW+(slotW-barW)/2;
+    return{x:bx+barW/2,y:padT+H-(b.aop/maxVal)*H};
+  }).filter(Boolean);
+  if(aopPts.length>1){
+    svg+=`<polyline points="${aopPts.map(p=>p.x+','+p.y).join(' ')}" fill="none" stroke="#D4A017" stroke-width="2" stroke-dasharray="6,3" opacity="0.9"/>`;
+    aopPts.forEach(p=>{svg+=`<circle cx="${p.x}" cy="${p.y}" r="3" fill="#D4A017"/>`;});
+  }
+  // AOP legend
+  const lx=padL+4,ly=padT-10;
+  svg+=`<line x1="${lx}" y1="${ly}" x2="${lx+16}" y2="${ly}" stroke="#D4A017" stroke-width="2" stroke-dasharray="6,3"/>`;
+  svg+=`<circle cx="${lx+8}" cy="${ly}" r="3" fill="#D4A017"/>`;
+  svg+=`<text x="${lx+22}" y="${ly+4}" font-size="10" fill="#9ca3af">AOP Target</text>`;
+  svg+='</svg>';
+  el.innerHTML=svg;
+}
+function buildSummary(){buildOrgBanner();bgc();setTimeout(bsc,50);setTimeout(buildContainersTrend,60);}
+
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab,.page').forEach(e=>e.classList.remove('active'));
+  t.classList.add('active');document.getElementById(t.dataset.tab+'-page').classList.add('active');
+  if(t.dataset.tab==='summary')buildSummary();
+  if(t.dataset.tab==='agents')bat();
+});
+document.querySelectorAll('[data-grp]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('[data-grp]').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');GF=b.dataset.grp;bat();
+});
+window.addEventListener('resize',()=>{if(document.getElementById('summary-page').classList.contains('active'))bsc();});
+
+/* ── Excel export: old "Weekly Agent Tracker" layout, always ALL weeks ──
+   Agents as rows; 7 metric blocks side by side; weeks as columns inside each block.
+   Each block ends with an AVG L4 column, then a blank spacer column.
+   Below the agents: 2 blank rows, Total (counts only), blank row,
+   then CLW / CNX / Both Average — matching OB Agent Weekly Tracker.
+   Counts average per agent (AVERAGEIF); Conversion and Cancel are weighted by
+   containers (SUMPRODUCT); Calls Per Oppty is derived from the row's own cells.
+   Ignores the on-screen week/group filters by design. */
+const EXCELJS_CDN='https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+const XBLOCKS=[
+  {key:'opps',        label:'Opportunities',       fmt:'#,##0', avgFmt:'#,##0.0', kind:'count'},
+  {key:'ob_calls',    label:'OB Calls',            fmt:'#,##0', avgFmt:'#,##0.0', kind:'count'},
+  {key:'ib_calls',    label:'IB Calls',            fmt:'#,##0', avgFmt:'#,##0.0', kind:'count'},
+  {key:'containers',  label:'Containers',          fmt:'#,##0', avgFmt:'#,##0.0', kind:'count'},
+  {key:'calls_per_opp',label:'Calls Per Oppty',    fmt:'0.00',  kind:'cpo'},
+  {key:'conversion',  label:'Container Conversion',fmt:'0.0%',  kind:'conv',  pct:true},
+  {key:'cancel_7d',   label:'Container Cancel',    fmt:'0.0%',  kind:'cancel',pct:true},
+];
+const colL=n=>{let s='';while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;};
+const rngA=(c1,r1,c2,r2)=>colL(c1)+r1+':'+colL(c2)+r2;
+function loadExcelJS(){
+  return new Promise((res,rej)=>{
+    if(window.ExcelJS)return res();
+    const s=document.createElement('script');
+    s.src=EXCELJS_CDN;
+    s.onload=()=>window.ExcelJS?res():rej(new Error('Excel library loaded but did not initialise.'));
+    s.onerror=()=>rej(new Error('Could not load the Excel library (no internet, or the CDN is blocked).'));
+    document.head.appendChild(s);
+  });
+}
+async function buildTrackerWorkbook(){
+  await loadExcelJS();
+  const wks=ALL_WKS,NW=wks.length,NB=XBLOCKS.length;
+  const L4=Math.min(4,NW), L4WKS=wks.slice(-L4);
+  const SEC=bi=>3+bi*(NW+2);      // first week column of block bi
+  const L4C=bi=>SEC(bi)+NW;       // its AVG L4 column
+  const lastCol=L4C(NB-1);
+  const CT=3;                      // index of the Containers block (weighting basis)
+
+  // Roster = every agent seen in any week (latest group wins), grouped then alphabetical
+  const roster={};
+  wks.forEach(w=>D[w].agents.forEach(a=>{roster[a.name]={name:a.name,group:a.group};}));
+  const agents=Object.values(roster).sort((x,y)=>
+    x.group===y.group?fn(x.name).localeCompare(fn(y.name)):x.group.localeCompare(y.group));
+  const byWk={};wks.forEach(w=>{const m={};D[w].agents.forEach(a=>{m[a.name]=a;});byWk[w]=m;});
+  const NA=agents.length, R0=3, R1=2+NA;
+  const TOTALR=R1+3, CLWR=R1+5, CNXR=R1+6, BOTHR=R1+7;   // 2 blanks, Total, blank, 3 avgs
+  const AC='$A$'+R0+':$A$'+R1;
+
+  // ── cached-value helpers (so the sheet displays before Excel recalcs) ──
+  const raw=(n,w,k)=>{const r=byWk[w][n];const v=r?r[k]:null;return v==null?null:v;};
+  const sumOf=(ns,ws_,k)=>{let s=0;ns.forEach(n=>ws_.forEach(w=>{const v=raw(n,w,k);if(v!=null)s+=v;}));return s;};
+  const meanOf=(ns,ws_,k)=>{let s=0,c=0;ns.forEach(n=>ws_.forEach(w=>{const v=raw(n,w,k);if(v!=null){s+=v;c++;}}));return c?s/c:null;};
+  const cpoOf=(ns,ws_)=>{const o=sumOf(ns,ws_,'opps');return o?(sumOf(ns,ws_,'ob_calls')+sumOf(ns,ws_,'ib_calls'))/o:null;};
+  const convOf=(ns,ws_)=>{const o=sumOf(ns,ws_,'opps');return o?sumOf(ns,ws_,'containers')/o:null;};
+  // container-weighted mean of a per-agent percentage metric (matches Frank's SUMPRODUCT rows)
+  const wtRate=(ns,ws_,k)=>{let nu=0,de=0;
+    ns.forEach(n=>ws_.forEach(w=>{const v=raw(n,w,k),t=raw(n,w,'containers');
+      if(v!=null&&t){nu+=v*t;de+=t;}}));
+    return de?nu/de/100:null;};
+
+  // per-agent AVG L4 values, reused by the summary rows' AVG L4 cells
+  const aL4={};
+  agents.forEach(a=>{const n=a.name,one=[n];
+    aL4[n]={opps:meanOf(one,L4WKS,'opps'),ob_calls:meanOf(one,L4WKS,'ob_calls'),
+      ib_calls:meanOf(one,L4WKS,'ib_calls'),containers:meanOf(one,L4WKS,'containers'),
+      calls_per_opp:cpoOf(one,L4WKS),conversion:convOf(one,L4WKS),cancel_7d:wtRate(one,L4WKS,'cancel_7d')};});
+  const l4Mean=(gn,k)=>{let s=0,c=0;gn.forEach(n=>{const v=aL4[n][k];if(v!=null){s+=v;c++;}});return c?s/c:null;};
+  const l4Sum =(gn,k)=>{let s=0;gn.forEach(n=>{const v=aL4[n][k];if(v!=null)s+=v;});return s;};
+  const l4Cpo =gn=>{const o=l4Sum(gn,'opps');return o?(l4Sum(gn,'ob_calls')+l4Sum(gn,'ib_calls'))/o:null;};
+  const l4Wt  =(gn,k)=>{let nu=0,de=0;gn.forEach(n=>{const v=aL4[n][k],t=aL4[n].containers;
+    if(v!=null&&t){nu+=v*t;de+=t;}});return de?nu/de:null;};
+
+  const wb=new ExcelJS.Workbook();
+  wb.creator='OB Performance Dashboard';wb.created=new Date();
+  const ws=wb.addWorksheet('Weekly Agent Tracker',{views:[{state:'frozen',xSplit:2,ySplit:2}]});
+
+  const NAVY='FF1C3557',SLATE='FFF8FAFC',L4FILL='FFEAF1F8',SUMFILL='FFF1F5F9',TOTFILL='FFE2E8F0';
+  const THIN={style:'thin',color:{argb:'FFD1D5DB'}};
+  const hdr=(r,c,text,fill)=>{
+    const cell=ws.getCell(r,c);cell.value=text;
+    cell.font={bold:true,color:{argb:fill===NAVY?'FFFFFFFF':'FF374151'},size:11};
+    cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:fill}};
+    cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+    cell.border={top:THIN,bottom:THIN,left:THIN,right:THIN};
+    return cell;
+  };
+
+  // ── Header rows ──
+  ws.mergeCells(1,1,2,1);hdr(1,1,'Business Unit',NAVY);
+  ws.mergeCells(1,2,2,2);hdr(1,2,'Agent',NAVY);
+  XBLOCKS.forEach((b,bi)=>{
+    ws.mergeCells(1,SEC(bi),1,L4C(bi));
+    hdr(1,SEC(bi),b.label,NAVY);
+    wks.forEach((w,i)=>hdr(2,SEC(bi)+i,'W'+D[w].num+'\n'+D[w].date,SLATE));
+    hdr(2,L4C(bi),'AVG L4',L4FILL);
+  });
+
+  // ── Agent rows ──
+  agents.forEach((ag,ai)=>{
+    const r=R0+ai;
+    const c1=ws.getCell(r,1);c1.value=ag.group;c1.alignment={horizontal:'center'};
+    const c2=ws.getCell(r,2);c2.value=fn(ag.name);
+    [c1,c2].forEach(c=>{c.font={bold:true,size:11};});
+
+    XBLOCKS.forEach((b,bi)=>{
+      wks.forEach((w,i)=>{
+        const cell=ws.getCell(r,SEC(bi)+i);
+        const rec=byWk[w][ag.name], v=rec?rec[b.key]:null;
+        const oppA=colL(SEC(0)+i)+r, obA=colL(SEC(1)+i)+r,
+              ibA =colL(SEC(2)+i)+r, ctA=colL(SEC(3)+i)+r;
+        if(b.kind==='cpo'&&rec)      cell.value={formula:`IFERROR((${obA}+${ibA})/${oppA},"")`,result:v==null?'':v};
+        else if(b.kind==='conv'&&rec)cell.value={formula:`IFERROR(${ctA}/${oppA},"")`,result:v==null?'':v/100};
+        else if(v!=null)             cell.value=b.pct?v/100:v;
+        cell.numFmt=b.fmt;cell.alignment={horizontal:'center'};
+        if(i===0)cell.border={left:{style:'medium',color:{argb:'FF9CA3AF'}}};
+      });
+      // AVG L4 — weighted across the last 4 weeks for rate blocks
+      const cell=ws.getCell(r,L4C(bi));
+      const s=NW-L4;
+      const oR=rngA(SEC(0)+s,r,SEC(0)+NW-1,r), bR=rngA(SEC(1)+s,r,SEC(1)+NW-1,r),
+            iR=rngA(SEC(2)+s,r,SEC(2)+NW-1,r), tR=rngA(SEC(CT)+s,r,SEC(CT)+NW-1,r),
+            sR=rngA(SEC(bi)+s,r,SEC(bi)+NW-1,r);
+      let f,res;const v4=aL4[ag.name];
+      if(b.kind==='count'){      f=`IFERROR(AVERAGE(${sR}),"")`;                     res=v4[b.key]; }
+      else if(b.kind==='cpo'){   f=`IFERROR((SUM(${bR})+SUM(${iR}))/SUM(${oR}),"")`; res=v4.calls_per_opp; }
+      else if(b.kind==='conv'){  f=`IFERROR(SUM(${tR})/SUM(${oR}),"")`;              res=v4.conversion; }
+      else {                     f=`IFERROR(SUMPRODUCT(${sR},${tR})/SUM(${tR}),"")`; res=v4.cancel_7d; }
+      cell.value={formula:f,result:res==null?'':res};
+      cell.numFmt=b.avgFmt||b.fmt;cell.alignment={horizontal:'center'};
+      cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:L4FILL}};
+      cell.font={bold:true,size:11};
+    });
+  });
+
+  // ── Total row + CLW / CNX / Both Average rows ──
+  const SUMDEFS=[
+    {row:TOTALR,code:null,   label:'Total',        kind:'sum',  fill:TOTFILL},
+    {row:CLWR,  code:'CLW',  label:'CLW Average',  kind:'avg',  fill:SUMFILL},
+    {row:CNXR,  code:'CNX',  label:'CNX Average',  kind:'avg',  fill:SUMFILL},
+    {row:BOTHR, code:null,   label:'Both Average', kind:'avg',  fill:SUMFILL},
+  ];
+  SUMDEFS.forEach(def=>{
+    const r=def.row, gn=agents.filter(a=>!def.code||a.group===def.code).map(a=>a.name);
+    const ca=ws.getCell(r,1);ca.value=def.code||'';ca.alignment={horizontal:'center'};
+    const cb=ws.getCell(r,2);cb.value=def.label;
+    [ca,cb].forEach(c=>{c.font={bold:true,size:11};
+      c.fill={type:'pattern',pattern:'solid',fgColor:{argb:def.fill}};c.border={top:THIN,bottom:THIN};});
+
+    XBLOCKS.forEach((b,bi)=>{
+      const put=(col,f,res,fmt)=>{
+        const cell=ws.getCell(r,col);
+        if(f)cell.value={formula:f,result:res==null?'':res};
+        cell.numFmt=fmt;cell.alignment={horizontal:'center'};
+        cell.font={bold:true,size:11};
+        cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:def.fill}};
+        cell.border={top:THIN,bottom:THIN};
+      };
+      const cols=wks.map((w,i)=>({c:SEC(bi)+i,ct:SEC(CT)+i,op:SEC(0)+i,ob:SEC(1)+i,ib:SEC(2)+i,wk:[w]}))
+                    .concat([{c:L4C(bi),ct:L4C(CT),op:L4C(0),ob:L4C(1),ib:L4C(2),wk:null}]);
+      cols.forEach(spec=>{
+        const isL4=spec.wk===null, fmt=isL4?(b.avgFmt||b.fmt):b.fmt;
+        const sR=rngA(spec.c,R0,spec.c,R1), tR=rngA(spec.ct,R0,spec.ct,R1);
+        const sC=colL(spec.c), tC=colL(spec.ct);
+        let f=null,res=null;
+        if(def.kind==='sum'){
+          // Total row: counts only, rates left blank (matches the reference file)
+          if(b.kind==='count'){f=`IFERROR(SUM(${sR}),"")`;res=isL4?l4Sum(gn,b.key):sumOf(gn,spec.wk,b.key);}
+        }else if(b.kind==='count'){
+          f=def.code?`IFERROR(AVERAGEIF(${AC},$A${r},${sC}$${R0}:${sC}$${R1}),"")`
+                    :`IFERROR(AVERAGE(${sR}),"")`;
+          res=isL4?l4Mean(gn,b.key):meanOf(gn,spec.wk,b.key);
+        }else if(b.kind==='cpo'){
+          // derived from this row's own OB / IB / Opps cells, as in the reference file
+          f=`IFERROR((${colL(spec.ob)}${r}+${colL(spec.ib)}${r})/${colL(spec.op)}${r},"")`;
+          res=isL4?l4Cpo(gn):cpoOf(gn,spec.wk);
+        }else{
+          // Conversion & Cancel: container-weighted across agents
+          f=def.code?`IFERROR(SUMPRODUCT(--(${AC}=$A${r}),${sR},${tR})/SUMIF(${AC},$A${r},${tR}),"")`
+                    :`IFERROR(SUMPRODUCT(${sR},${tR})/SUM(${tR}),"")`;
+          res=isL4?l4Wt(gn,b.key):wtRate(gn,spec.wk,b.key);
+        }
+        put(spec.c,f,res,fmt);
+      });
+    });
+  });
+
+  // ── Sizing ──
+  ws.getRow(1).height=20;ws.getRow(2).height=28;
+  [R1+1,R1+2,R1+4].forEach(r=>{ws.getRow(r).height=8;});
+  ws.getColumn(1).width=14;ws.getColumn(2).width=24;
+  for(let c=3;c<=lastCol;c++)ws.getColumn(c).width=10;
+  XBLOCKS.forEach((b,bi)=>{if(bi<NB-1)ws.getColumn(SEC(bi)+NW+1).width=2.5;});
+
+  return{wb,ws,agents,weeks:wks,lastCol,rows:{first:R0,last:R1,total:TOTALR,clw:CLWR,cnx:CNXR,both:BOTHR}};
+}
+async function exportAllWeeks(){
+  const btn=document.getElementById('export-btn'),note=document.getElementById('export-note');
+  const orig=btn.textContent;
+  btn.disabled=true;btn.textContent='Building…';note.textContent='';
+  try{
+    const built=await buildTrackerWorkbook();
+    const d=new Date(),pad=n=>String(n).padStart(2,'0');
+    const fname=`OB_Agent_Weekly_Tracker_AllWeeks_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.xlsx`;
+    const buf=await built.wb.xlsx.writeBuffer();
+    const url=URL.createObjectURL(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    const a=document.createElement('a');a.href=url;a.download=fname;document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},0);
+    note.textContent=`${built.agents.length} agents × ${built.weeks.length} weeks exported`;
+  }catch(err){
+    note.textContent='Export failed: '+err.message;
+    console.error(err);
+  }finally{
+    btn.disabled=false;btn.textContent=orig;
+  }
+}
+document.getElementById('export-btn').onclick=exportAllWeeks;
+
+wbs('sum-week-selector', AGENT_WKS, ()=>buildSummary());
+wbs('week-selector', AGENT_WKS, ()=>bat());
+rwb();buildSummary();
+</script>
+</body>
+</html>
